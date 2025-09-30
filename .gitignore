@@ -1,4 +1,4 @@
-# Environment variables
+# Environment variables - CRÍTICO!
 .env
 keys.env
 *.env
@@ -17,6 +17,7 @@ keys.env
 /videos/
 *.mp4
 *.mov
+*.avi
 
 # OS files
 .DS_Store
@@ -30,3 +31,6 @@ docker-compose.override.yml
 # Backups
 *.backup
 *.bak
+
+# Node modules (se houver)
+node_modules/
