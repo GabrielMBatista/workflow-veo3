@@ -381,7 +381,7 @@ curl -H "Authorization: Token SEU_TOKEN" \
 // - Mesmo framerate
 ```
 
-## 📈 Otimizações
+## 📈 Otimizações Futuras
 
 ### Performance
 
@@ -401,22 +401,6 @@ curl -H "Authorization: Token SEU_TOKEN" \
 2. **Smart Caching**: Reutiliza assets
 3. **Fallback Models**: Usa modelos alternativos quando necessário
 
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas! Por favor:
-
-1. Fork o projeto
-2. Crie sua feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit suas mudanças (`git commit -m 'Add amazing feature'`)
-4. Push para a branch (`git push origin feature/amazing-feature`)
-5. Abra um Pull Request
-
-### Diretrizes
-
-- Mantenha a compatibilidade com n8n latest
-- Adicione testes para novas features
-- Atualize a documentação
-- Siga o estilo de código existente
 
 ## 📄 Licença
 
@@ -429,13 +413,6 @@ Este projeto está licenciado sob a MIT License - veja o arquivo [LICENSE](LICEN
 - [Baserow](https://baserow.io) - Database no-code
 - [FFmpeg](https://ffmpeg.org) - Processamento de vídeo
 - Comunidade n8n - Suporte e inspiração
-
-## 📞 Suporte
-
-- **Issues**: [GitHub Issues](https://github.com/seu-usuario/n8n-video-generator/issues)
-- **Discussões**: [GitHub Discussions](https://github.com/seu-usuario/n8n-video-generator/discussions)
-- **Email**: seu-email@exemplo.com
-- **Discord**: [n8n Community](https://discord.gg/n8n)
 
 ## 🚦 Status do Projeto
 
