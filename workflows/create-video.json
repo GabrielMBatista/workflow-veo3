@@ -1,0 +1,401 @@
+{
+  "name": "create-video",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "status-check",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "pending",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -640,
+        544
+      ],
+      "id": "0c9a9ae8-a004-4fc0-b9c2-3d6026120efc",
+      "name": "Is Pending?"
+    },
+    {
+      "parameters": {
+        "url": "http://n8n:5678/webhook/config?section=apis",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "4fc0929d-9e1b-482b-9fde-87cc451c2f17",
+      "name": "Get Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -416,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "base64-check",
+              "leftValue": "={{ $('Get a row1').first().json.frame_base64 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "base64-not-null",
+              "leftValue": "={{ $('Get a row1').first().json.frame_base64 }}",
+              "rightValue": "null",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -192,
+        448
+      ],
+      "id": "f6ca1a7e-cba7-4bd5-9402-964531eb5ab3",
+      "name": "Has Base64?"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "databaseId": 292721,
+        "tableId": 680992,
+        "rowId": "={{ $('creat-video1').first().json.body.rowId }}",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": 5621568,
+              "fieldValue": "={{ $json.name}}"
+            },
+            {
+              "fieldId": 5621564,
+              "fieldValue": "processing"
+            }
+          ]
+        }
+      },
+      "id": "441089f1-0ca4-43eb-bec6-58ebfdbabb43",
+      "name": "Update to Processing",
+      "type": "n8n-nodes-base.baserow",
+      "typeVersion": 1,
+      "position": [
+        256,
+        352
+      ],
+      "credentials": {
+        "baserowApi": {
+          "id": "your-credential-id",
+          "name": "Baserow account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Remove frame_base64 e prepara resposta de sucesso\nconst { frame_base64, ...cleanData } = $('Get a row1').first().json;\n\nreturn {\n  json: {\n    success: true,\n    ...cleanData,\n    name: $json.name,\n    status: \"processing\",\n    message: \"Vídeo criado com sucesso e em processamento\"\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        352
+      ],
+      "id": "8aea10d4-973c-4850-9c4f-27e8f2586181",
+      "name": "Success Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resposta quando já está processando ou concluído\nconst row = $('Get a row1').first().json;\nconst { frame_base64, ...cleanData } = row;\n\nreturn {\n  json: {\n    success: false,\n    ...cleanData,\n    message: `Cena já está com status: ${row.status}. Não é necessário criar vídeo novamente.`,\n    error: \"ALREADY_PROCESSED\"\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        736
+      ],
+      "id": "3d66e5db-38a4-4ff9-aad2-365ccfe21e7e",
+      "name": "Already Processed"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resposta quando não há frame_base64\nconst row = $('Get a row1').first().json;\nconst { frame_base64, ...cleanData } = row;\n\nreturn {\n  json: {\n    success: false,\n    ...cleanData,\n    message: \"Não é possível criar vídeo: frame_base64 está ausente ou nulo\",\n    error: \"MISSING_BASE64\"\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        544
+      ],
+      "id": "5580c37a-e455-4156-b6ec-9e0eb8e1eb94",
+      "name": "Missing Base64"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "databaseId": 292721,
+        "tableId": 680992,
+        "rowId": "={{ $('creat-video1').first().json.body.rowId }}"
+      },
+      "type": "n8n-nodes-base.baserow",
+      "typeVersion": 1,
+      "position": [
+        -864,
+        544
+      ],
+      "id": "2f98243f-efe0-4860-bcf6-8dbfc24fbe72",
+      "name": "Get a row1",
+      "credentials": {
+        "baserowApi": {
+          "id": "your-credential-id",
+          "name": "Baserow account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/veo-3.0-generate-preview:predictLongRunning",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-goog-api-key",
+              "value": "={{ $('Get Config').item.json.data.apis.google.gemini_api_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"instances\": [\n    {\n      \"prompt\": \"{{ $('Get a row1').first().json.prompt }}.\",\n      \"image\": {\n        \"bytesBase64Encoded\": \"{{ $('Get a row1').first().json.frame_base64 }}\",\n        \"mimeType\": \"image/jpeg\"\n      }\n    }\n  ],\n  \"parameters\": {\n    \"aspectRatio\": \"{{ '16:9' }}\",\n    \"negativePrompt\": \"abrupt cuts, discontinuity, inconsistent lighting\"\n  }\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "04445c09-fd63-4ce4-bd8f-578845cf2c29",
+      "name": "Criar video1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        32,
+        352
+      ],
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "58eecfc5-fb2d-4033-9310-623dea008577",
+      "name": "Send Response1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "creat-video",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "id": "458292f8-9bf7-4821-8669-0085d15e6a4d",
+      "name": "creat-video1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1088,
+        544
+      ],
+      "webhookId": "3f5da5a3-5b4b-468c-9113-c47979aec6cf"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Is Pending?": {
+      "main": [
+        [
+          {
+            "node": "Get Config",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Already Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Config": {
+      "main": [
+        [
+          {
+            "node": "Has Base64?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Base64?": {
+      "main": [
+        [
+          {
+            "node": "Criar video1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Missing Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update to Processing": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success Response": {
+      "main": [
+        [
+          {
+            "node": "Send Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Processed": {
+      "main": [
+        [
+          {
+            "node": "Send Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Missing Base64": {
+      "main": [
+        [
+          {
+            "node": "Send Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a row1": {
+      "main": [
+        [
+          {
+            "node": "Is Pending?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar video1": {
+      "main": [
+        [
+          {
+            "node": "Update to Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "creat-video1": {
+      "main": [
+        [
+          {
+            "node": "Get a row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e2cdd2ef-80f3-43ac-806b-f0a744ae9485",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d1b0ef2164e9a177f6384a02d1859318790ccb76a4a79273333fce728fcf4f86"
+  },
+  "id": "lMqMzYjdayv4eYQR",
+  "tags": []
+}

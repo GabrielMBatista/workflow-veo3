@@ -1,0 +1,62 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-video-generator
+    restart: unless-stopped
+    environment:
+      # n8n Core
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-change-this-key}
+      - N8N_PORT=${N8N_PORT:-5678}
+      - N8N_PROTOCOL=http
+      - N8N_HOST=${N8N_HOST:-0.0.0.0}
+      - NODE_ENV=${NODE_ENV:-production}
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678}
+      
+      # Execution
+      - EXECUTIONS_PROCESS=${EXECUTIONS_PROCESS:-main}
+      - EXECUTIONS_MODE=${EXECUTIONS_MODE:-regular}
+      
+      # Timezone
+      - TZ=${TZ:-America/Sao_Paulo}
+      - GENERIC_TIMEZONE=${TZ:-America/Sao_Paulo}
+      
+      # API Keys - Available to all workflows
+      - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY}
+      - BASEROW_API_KEY=${BASEROW_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - WAVESPEED_API_KEY=${WAVESPEED_API_KEY}
+      
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/workflows:ro
+      - ./keys.env:/files/keys.env:ro
+      - videos_temp:/tmp/videos
+    
+    command: >
+      sh -c "
+        echo '🎬 Installing FFmpeg...' &&
+        apk add --no-cache ffmpeg bash curl &&
+        echo '✅ FFmpeg installed' &&
+        echo '🚀 Starting n8n...' &&
+        n8n
+      "
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  n8n_data:
+    driver: local
+  videos_temp:
+    driver: local
+
+networks:
+  default:
+    name: n8n-network

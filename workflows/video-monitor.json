@@ -1,0 +1,390 @@
+{
+  "name": "video-monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "=https://generativelanguage.googleapis.com/v1beta/{{ $('Get a row')\n.first().json.create_url_video }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-goog-api-key",
+              "value": "={{ $('Get Config1').first().json.data.apis.google.gemini_api_key }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 25000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        144
+      ],
+      "id": "6b1db6f5-b8a1-412c-8a3e-4c20b1c39641",
+      "name": "Check Ready"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "video-done-check",
+              "leftValue": "={{ $json.done }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "7b78b5ec-bc51-4e60-bb03-3f842bfbea6d",
+              "leftValue": "={{ $json.done }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        144,
+        64
+      ],
+      "id": "91eeffc0-a810-42b5-9ce4-b2873a6d677b",
+      "name": "Video Done?"
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        368,
+        240
+      ],
+      "id": "4bab596e-88e6-4b4b-96d8-f9a8a80f0891",
+      "name": "Wait 20s",
+      "webhookId": "e5300022-3f9c-470b-a1d8-afdf056edc1a"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/tmp/videos/{{ $('get-video').first().json.body.sessionId }}/scene_{{ $('get-video').first().json.body.sceneIndex}}.mp4",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        592,
+        16
+      ],
+      "id": "b0f9164c-d4d4-45cd-b454-4e111522eea6",
+      "name": "Save Video",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.response.generateVideoResponse.generatedSamples[0].video.uri }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $('Get Config1').first().json.data.apis.google.gemini_api_key }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        368,
+        16
+      ],
+      "id": "04a86400-d8ac-4420-a5f9-c1cf6069ff99",
+      "name": "Download Video1"
+    },
+    {
+      "parameters": {
+        "url": "http://n8n:5678/webhook/config?section=apis",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "49fe3da8-d83f-419d-834d-4cbed8eeb39b",
+      "name": "Get Config1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -288,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "fbb4f77d-88cc-42fe-a55a-4b41193968fd",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1024,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "get-video",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e260859f-eedb-4544-a3ff-182e22e65c10",
+      "name": "get-video",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -960,
+        144
+      ],
+      "webhookId": "3f5da5a3-5b4b-468c-9113-c47979aec6cf"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WEBHOOK_URL }}/webhook/extract-frame",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "slug",
+              "value": "={{ $('get-video').first().json.body.sessionId }}"
+            },
+            {
+              "name": "sceneIndex",
+              "value": "={{ $('get-video').first().json.body.sceneIndex}}"
+            },
+            {
+              "name": "rowId",
+              "value": "={{ $('get-video').first().json.body.rowId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0f40d755-b384-4518-9815-2f347b8019fa",
+      "name": "extract-frame",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        816,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validação dos campos obrigatórios  \nconst body = $input.first().json.body || {};\nconst errors = [];\n\n// Validar sessionId\nif (!body.sessionId || typeof body.sessionId !== 'string' || body.sessionId.trim() === '') {\n  errors.push('sessionId é obrigatório e deve ser uma string não vazia');\n}\n\n// Validar sceneIndex  \nif (body.sceneIndex === undefined || body.sceneIndex === null || typeof body.sceneIndex !== 'number') {\n  errors.push('sceneIndex é obrigatório e deve ser um número');\n}\n\n// Validar rowId\nif (!body.rowId || typeof body.rowId !== 'string' || body.rowId.trim() === '') {\n  errors.push('rowId é obrigatório e deve ser uma string não vazia');\n}\n\n// Validar name\nif (!body.name || typeof body.name !== 'string' || body.name.trim() === '') {\n  errors.push('name é obrigatório e deve ser uma string não vazia');  \n}\n\n// ✅ CORRETO - Se há erros, retorna com flag de erro\nif (errors.length > 0) {\n  return [{\n    json: {\n      ...($input.first().json || {}),\n      validationError: true,\n      errorDetails: {\n        error: true,\n        message: 'Validação falhou',\n        errors: errors,\n        required_fields: {\n          sessionId: 'string (obrigatório)',\n          sceneIndex: 'number (obrigatório)',\n          rowId: 'string (obrigatório)', \n          name: 'string (obrigatório)'\n        },\n        received_data: body\n      }\n    }\n  }];\n}\n\n// ✅ CORRETO - Se válido, retorna com flag de sucesso\nreturn [{\n  json: {\n    ...($input.first().json || {}),\n    validationError: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -736,
+        144
+      ],
+      "id": "e3507ad0-700a-488d-9c6d-7e101688b6b1",
+      "name": "Validate Body"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "databaseId": 292721,
+        "tableId": 680992,
+        "rowId": "={{ $json.body.rowId }}"
+      },
+      "type": "n8n-nodes-base.baserow",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        144
+      ],
+      "id": "99c5d1c6-e396-451c-b7a4-b9f3af33c3ad",
+      "name": "Get a row",
+      "credentials": {
+        "baserowApi": {
+          "id": "your-credential-id",
+          "name": "Baserow account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Check Ready": {
+      "main": [
+        [
+          {
+            "node": "Video Done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video Done?": {
+      "main": [
+        [
+          {
+            "node": "Download Video1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 20s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 20s": {
+      "main": [
+        [
+          {
+            "node": "Check Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Video": {
+      "main": [
+        [
+          {
+            "node": "extract-frame",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Video1": {
+      "main": [
+        [
+          {
+            "node": "Save Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Config1": {
+      "main": [
+        [
+          {
+            "node": "Check Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get-video": {
+      "main": [
+        [
+          {
+            "node": "Validate Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extract-frame": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Body": {
+      "main": [
+        [
+          {
+            "node": "Get a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a row": {
+      "main": [
+        [
+          {
+            "node": "Get Config1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "03806f9f-24ca-479b-b734-e28d027c2f7d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d1b0ef2164e9a177f6384a02d1859318790ccb76a4a79273333fce728fcf4f86"
+  },
+  "id": "txKQnsfDyURtMm4d",
+  "tags": []
+}

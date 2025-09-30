@@ -1,0 +1,145 @@
+{
+  "name": "Config Server",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "config",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7728ba67-0638-405c-8b79-0841fa437417",
+      "name": "Config Endpoint",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "3f5da5a3-5b4b-468c-9113-c47979aec6cf"
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  // Verificar se veio o campo data\n  if (!$json || !$json.data) {\n    return [{\n      json: {\n        success: false,\n        error: \"Conteúdo do arquivo não encontrado no input\",\n        debug: {\n          received_keys: Object.keys($json || {}),\n          expected_key: \"data\"\n        }\n      }\n    }];\n  }\n\n  // Ler conteúdo do arquivo vindo no JSON\n  const envContent = $json.data;\n  console.log('Arquivo carregado:', envContent.length, 'caracteres');\n\n  // Parse do .env\n  const envVars = {};\n  envContent.split('\\n').forEach(line => {\n    line = line.trim();\n    if (line && !line.startsWith('#') && line.includes('=')) {\n      const [key, ...valueParts] = line.split('=');\n      envVars[key.trim()] = valueParts.join('=').trim();\n    }\n  });\n\n  const config = {\n    apis: {\n      google: {\n        gemini_api_key: envVars.GOOGLE_GEMINI_API_KEY,\n        veo_endpoint: \"https://generativelanguage.googleapis.com/v1beta\"\n      },\n      groq: {\n        api_key: envVars.GROQ_API_KEY\n      },\n      wavespeed: {\n        api_key: envVars.WAVESPEED_API_KEY\n      },\n      baserow: {\n        api_key: envVars.BASEROW_API_KEY\n      }\n    },\n    postgres: {\n      db: envVars.POSTGRES_DB,\n      user: envVars.POSTGRES_USER,\n      password: envVars.POSTGRES_PASSWORD\n    },\n    n8n: {\n      webhook_url: envVars.WEBHOOK_URL,\n      api_key: envVars.N8N_API_KEY,\n      encryption_key: envVars.N8N_ENCRYPTION_KEY,\n      db_name: envVars.N8N_DB_NAME\n    }\n  };\n\n  return [{\n    json: {\n      success: true,\n      timestamp: new Date().toISOString(),\n      data: config\n    }\n  }];\n\n} catch (error) {\n  return [{\n    json: {\n      success: false,\n      error: error.message\n    }\n  }];\n}\n"
+      },
+      "id": "9fcca7dc-4045-4730-aab7-3fa44dcd215a",
+      "name": "Config Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "77b1fb00-7aed-41a6-96eb-0c302d672ed6",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/keys.env",
+        "options": {
+          "fileExtension": "env"
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "85f82bf1-e250-4e71-a9c1-dadc919ed9c2",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "582c3bfc-7177-4876-bdea-888f7811a4df",
+      "name": "Extract from File"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Config Endpoint": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config Processor": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Config Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "610e8ddd-2a6a-4539-8adc-9332dc629b40",
+  "meta": {
+    "instanceId": "d1b0ef2164e9a177f6384a02d1859318790ccb76a4a79273333fce728fcf4f86"
+  },
+  "id": "vmiJPtYlPe4iTLTE",
+  "tags": []
+}

@@ -1,0 +1,387 @@
+{
+  "name": "extract-frame",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "http://n8n:5678/webhook/config?section=apis",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "610a816c-a850-428d-b5bd-075d9798610f",
+      "name": "Get Config1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -656,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "333a1d48-9a58-49d6-82bf-8043beacb255",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1136,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "extract-frame",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "id": "7ce9d0a9-18d3-40ad-a116-ad60dafcade4",
+      "name": "extract-frame",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -880,
+        16
+      ],
+      "webhookId": "3f5da5a3-5b4b-468c-9113-c47979aec6cf"
+    },
+    {
+      "parameters": {
+        "command": "=ffmpeg -sseof -1 -i /tmp/videos/{{ $('extract-frame').first().json.body.slug }}/scene_{{ $('extract-frame').first().json.body.sceneIndex }}.mp4 -vframes 1 -f image2 - | base64 -w 0"
+      },
+      "id": "6a0e0f65-9121-4bff-b29b-bf4c8e597520",
+      "name": "Extract Last Frame",
+      "type": "n8n-nodes-base.executeCommand",
+      "position": [
+        -432,
+        16
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const lastFrameBase64 = $json.stdout;\n\nreturn {\n  json: {\n    sceneIndex: $('extract-frame').first().json.body.sceneIndex,\n    output: {\n      bytesBase64Encoded: lastFrameBase64\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        16
+      ],
+      "id": "0d51120d-9827-4710-9a95-0400025f62c5",
+      "name": "Prepare Frame Data1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "databaseId": 292721,
+        "tableId": 680992,
+        "rowId": "={{ $('extract-frame').first().json.body.rowId }}",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": 5621564,
+              "fieldValue": "done"
+            }
+          ]
+        }
+      },
+      "id": "89f0c8c4-5c8e-480f-a3a7-e192ee6b720e",
+      "name": "Update to Done",
+      "type": "n8n-nodes-base.baserow",
+      "typeVersion": 1,
+      "position": [
+        16,
+        16
+      ],
+      "credentials": {
+        "baserowApi": {
+          "id": "your-credential-id",
+          "name": "Baserow account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.baserow.io/api/database/rows/table/680992/",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "user_field_names",
+              "value": "true"
+            },
+            {
+              "name": "filter__session_id__equal",
+              "value": "={{ $('extract-frame').first().json.body.slug }}"
+            },
+            {
+              "name": "filter__index__equal",
+              "value": "=scene_{{ $('extract-frame').first().json.body.sceneIndex +1}}"
+            },
+            {
+              "name": "size",
+              "value": "1"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Token your-token-here"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        16
+      ],
+      "id": "8870de14-2aeb-4d93-9754-7e4265925af7",
+      "name": "Find Next Scene"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "next-scene-exists",
+              "leftValue": "={{ $json.results.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        464,
+        16
+      ],
+      "id": "40693cdd-869f-4478-81b0-e5e727c77c33",
+      "name": "Next Scene Exists?"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "databaseId": 292721,
+        "tableId": 680992,
+        "rowId": "={{ $('Find Next Scene').first().json.results[0].id }}",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": 5621567,
+              "fieldValue": "={{ $('Prepare Frame Data1').first().json.output.bytesBase64Encoded }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.baserow",
+      "typeVersion": 1,
+      "position": [
+        688,
+        -80
+      ],
+      "id": "2fd23467-533d-4041-986b-ebe5b0d4469b",
+      "name": "Update Found Scene",
+      "credentials": {
+        "baserowApi": {
+          "id": "your-credential-id",
+          "name": "Baserow account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const currentIndex = $('extract-frame').first().json.body.sceneIndex;\nconst sessionId = $('extract-frame').first().json.body.sessionId;\n\nconsole.log(`Nenhuma próxima cena para sessionId: ${sessionId}, sceneIndex: ${currentIndex}`);\n\nreturn {\n  json: {\n    success: true,\n    message: 'Última cena processada - nenhuma próxima cena para atualizar',\n    sessionId: sessionId,\n    currentIndex: currentIndex\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        112
+      ],
+      "id": "cda492ae-3046-40b2-b7a5-4bc7b05dda7d",
+      "name": "No Next Scene"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Remove frame_base64 e prepara resposta de sucesso\nconst { frame_base64, ...cleanData } = $('Update Found Scene').first().json;\n\nreturn {\n  json: {\n    success: true,\n    ...cleanData,\n    name: $json.name,\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        -80
+      ],
+      "id": "c4a1a4a8-112f-4ca0-99fb-98b7700b5f9b",
+      "name": "Success Response"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get Config1": {
+      "main": [
+        [
+          {
+            "node": "Extract Last Frame",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extract-frame": {
+      "main": [
+        [
+          {
+            "node": "Get Config1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Last Frame": {
+      "main": [
+        [
+          {
+            "node": "Prepare Frame Data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Frame Data1": {
+      "main": [
+        [
+          {
+            "node": "Update to Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update to Done": {
+      "main": [
+        [
+          {
+            "node": "Find Next Scene",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Next Scene": {
+      "main": [
+        [
+          {
+            "node": "Next Scene Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next Scene Exists?": {
+      "main": [
+        [
+          {
+            "node": "Update Found Scene",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Next Scene",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Found Scene": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Next Scene": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success Response": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "628e7ade-2732-4880-885a-7a864cadb242",
+  "meta": {
+    "instanceId": "d1b0ef2164e9a177f6384a02d1859318790ccb76a4a79273333fce728fcf4f86"
+  },
+  "id": "UtXLe5mnjts6Nlik",
+  "tags": []
+}

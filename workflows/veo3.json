@@ -1,0 +1,1145 @@
+{
+  "name": "veo limpo new",
+  "nodes": [
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function sanitizeText(text) {\n  if (!text) return \"\";\n  return text\n    .toString()\n    // remove caracteres de controle invisíveis\n    .replace(/[\\x00-\\x1F\\x7F]/g, \" \")\n    // remove backslashes\n    .replace(/\\\\/g, \"\")\n    // remove aspas duplas\n    .replace(/\"/g, \"\")\n    // remove quebras de linha e tabs\n    .replace(/[\\r\\n\\t]+/g, \" \")\n    // normaliza espaços\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\n\n\nconst input = $('Remove caracteres especiais').item.json;\nconsole.log(\"=== INPUT HISTÓRIA (Remove caracteres especiais) ===\");\nconsole.log(input);\n\nconst firstSceneImage = $('Generate First Scene Image').item.json.predictions?.[0]?.bytesBase64Encoded || null;\nconst sessionId = input.metadata?.sessionId || \"unknown-session\";\nconsole.log(\"Session ID:\", sessionId);\n\nconst scenes = Array.isArray(input.scenes) ? input.scenes : [];\nconsole.log(\"Total de scenes encontradas:\", scenes.length);\n\nconst voice = input.voice_guide || {};\nconsole.log(\"Guia vocal:\", voice);\n\nconst processedScenes = scenes.map((scene, index) => {\n  console.log(`--- Processando scene ${index + 1} ---`);\n  console.log(scene);\n\n  const veoPromptParts = [\n    sanitizeText(scene.prompt || \"\"),\n    scene.audio_cues ? `Narração: ${sanitizeText(scene.audio_cues)}` : null,\n    voice.style ? `Estilo vocal: ${sanitizeText(voice.style)}` : null,\n    index === 0\n      ? \"Música: piano melancólico suave\"\n      : index === 1\n        ? \"Música: cordas esperançosas crescendo\"\n        : \"Música: orquestra inspiradora e vibrante\"\n  ].filter(Boolean);\n\n  const veoPrompt = veoPromptParts.join(\". \");\n\n  return {\n    id: scene.id || `scene_${index}`,\n    duration: scene.duration || null,\n    sceneIndex: index,\n    isFirstScene: index === 0,\n    isLastScene: index === scenes.length - 1,\n    previousSceneIndex: index > 0 ? index - 1 : null,\n    nextSceneIndex: index < scenes.length - 1 ? index + 1 : null,\n    sessionId,\n    totalScenes: scenes.length,\n\n    prompt: veoPrompt,\n    audioPrompt: sanitizeText(scene.audio_cues || \"\"),\n    rawPrompt: sanitizeText(scene.prompt || \"\"),\n    continuity_elements: Array.isArray(scene.continuity_elements) ? scene.continuity_elements : [],\n    bytesBase64Encoded: index === 0 ? firstSceneImage : null\n  };\n});\n\nconsole.log(\"=== SCENES PROCESSADAS ===\");\nconsole.log(processedScenes);\n\nconst combinedAudio = processedScenes\n  .map(s => s.audioPrompt)\n  .filter(Boolean)\n  .join(\" \");\n\nconsole.log(\"=== ÁUDIO COMBINADO ===\");\nconsole.log(combinedAudio);\n\nreturn {\n  json: {\n    output: processedScenes,\n    combinedAudio\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        -1120
+      ],
+      "id": "adf14b17-9aef-406b-a8d3-139e41ed81aa",
+      "name": "Prepare Scenes with Continuity"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [
+        1328,
+        -608
+      ],
+      "id": "96d754f6-ac5d-478a-836b-121bd3586719",
+      "name": "Convert to Binary Output"
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1536,
+        -608
+      ],
+      "id": "682e1efa-0f66-4fe3-8d69-304a39d42121",
+      "name": "Send Final Video"
+    },
+    {
+      "parameters": {
+        "url": "http://n8n:5678/webhook/config?section=apis",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "f51fc9d6-052e-4724-93cc-8e05e99664c1",
+      "name": "Get Config1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -16,
+        -1456
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let raw = $input.first().json.text || '';\nraw = raw.trim();\n\n// Remove blocos markdown tipo ```json ... ``` ou apenas ```\nraw = raw.replace(/```json/i, '').replace(/```/g, '').trim();\n\n// Remove possíveis linhas isoladas que só tenham \"json\"\nraw = raw.replace(/^json\\s*/i, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (err) {\n  throw new Error(\n    \"Erro ao fazer JSON.parse: \" + err.message +\n    \"\\nTexto recebido (preview):\\n\" + raw.substring(0, 200)\n  );\n}\n\n// 🔑 Retorno no formato que o n8n exige\nif (Array.isArray(parsed)) {\n  return parsed.map(p => ({ json: p }));\n} else {\n  return [{ json: parsed }];\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        -1120
+      ],
+      "id": "fd6aca12-78de-4545-88c1-d27c629dbc88",
+      "name": "Remove caracteres especiais"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $('Get Config1').item.json.data.apis.google.gemini_api_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"instances\": [\n    {\n      \"prompt\": \"{{ $json.scenes[0].video_prompt }}. {{ $json.visual_guide.style }}. Single unified scene, no composite shots, no picture-in-picture, no multiple panels. No text, watermarks, logos, subtitles.\"\n    }\n  ],\n  \"parameters\": {\n    \"sampleCount\": 1,\n    \"aspectRatio\": \"16:9\",\n    \"quality\": \"high\"\n  }\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b64466be-6640-4c58-9b85-969aaeee4e19",
+      "name": "Generate First Scene Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        -1120
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "b0f4c95e-f5f6-42a8-970a-3b571460b794",
+      "name": "Prompt Input",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "position": [
+        -240,
+        -1456
+      ],
+      "webhookId": "a1610267-dc93-4a62-9cf3-d26af6073824",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "predictions[0].bytesBase64Encoded",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -576,
+        -1136
+      ],
+      "id": "240d68e5-37d3-4338-85eb-89cd37d2fb38",
+      "name": "Convert Generated Image"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Inicializa o estado para o AI Agent\nconst scenes = $input.first().json.output || [];\nconst sessionId = scenes[0]?.sessionId || 'unknown';\n\n// Cria estrutura de estado inicial\nconst initialState = {\n  sessionId: sessionId,\n  totalScenes: scenes.length,\n  scenes: scenes.map((scene, idx) => ({\n    index: idx,\n    id: scene.id,\n    prompt: scene.prompt,\n    bytesBase64Encoded: scene.bytesBase64Encoded,\n    continuityData: scene.continuityData,\n    status: 'pending', // pending, processing, video_ready, done, failed, error\n    operationName: null,\n    videoPath: null,\n    frameBase64: null,\n    retryAttempt: 0,\n    error: null\n  })),\n  currentSceneIndex: 0,\n  completedCount: 0,\n  failedCount: 0,\n  startedAt: new Date().toISOString(),\n  maxRetries:  3\n};\n\nreturn {\n  json: {\n    sessionId: sessionId,\n    state: initialState,\n    message: 'Estado inicial criado. Iniciando processamento autônomo...'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -1120
+      ],
+      "id": "67361c29-899d-4fb9-9fe1-44bf70ec6546",
+      "name": "Initialize Agent State"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "databaseId": 292721,
+        "tableId": 680992,
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": 5621560,
+              "fieldValue": "={{ $json.sessionId }}"
+            },
+            {
+              "fieldId": 5621567,
+              "fieldValue": "={{ $json['state.scenes'].bytesBase64Encoded }}"
+            },
+            {
+              "fieldId": 5621563,
+              "fieldValue": "={{ $json['state.scenes'].prompt }}"
+            },
+            {
+              "fieldId": 5621564,
+              "fieldValue": "={{ $json['state.scenes'].status }}"
+            },
+            {
+              "fieldId": 5621561,
+              "fieldValue": "={{ $json['state.scenes'].id }}"
+            }
+          ]
+        }
+      },
+      "id": "43861346-3093-42c8-8f9e-0de93b658a5c",
+      "name": "Baserow",
+      "type": "n8n-nodes-base.baserow",
+      "typeVersion": 1,
+      "position": [
+        896,
+        -1120
+      ],
+      "credentials": {
+        "baserowApi": {
+          "id": "your-credential-id",
+          "name": "Baserow account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "state.sessionId, state.scenes",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        672,
+        -1120
+      ],
+      "id": "8dd52514-cbea-4baa-96ed-1e563a342328",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "jsCode": "const sessionId = $input.first().json.session_id || $input.first().json.body?.sessionId;\n\nif (!sessionId) {\n  throw new Error('sessionId é obrigatório');\n}\n\nreturn { json: { sessionId } };"
+      },
+      "id": "e10de33c-81bd-499c-86aa-6788501079b4",
+      "name": "Prepare Session",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -1120
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Você é o GERADOR DE VÍDEOS – responsável por iniciar a criação de vídeos.  \nSession ID: {{ $json.sessionId }}\n\n🎬 Responsabilidade  \n- Encontrar a próxima cena e iniciar sua geração.  \n- Se houver cenas já em processing, apenas encaminhe ao próximo agente.  \n\n📋 Fluxo  \n1. Use **Tool checkProcessingScenes** :  \n   - Se a tool retornar uma cena com status \"processing\" → retorne imediatamente:  \n     {\n       \"status\": \"processing_found\",\n       \"rowId\": \"[ID]\",\n       \"sessionId\": \"{{ $json.sessionId }}\",\n       \"sceneIndex\": \"[scene_X]\",\n       \"log\": \"Cena em processamento detectada → encaminhando\"\n     }  \n   - Se a tool não retornar resultados → continue para o próximo passo.  \n\n2. Use **Tool checkPendingScenes2**:  \n   - Se a tool retornar uma cena \"pending\" → chame **generateVideo** e retorne:  \n     {\n       \"status\": \"video_created\",\n       \"rowId\": \"[ID]\",\n       \"sessionId\": \"{{ $json.sessionId }}\",\n       \"sceneIndex\": \"[scene_X]\",\n       \"log\": \"Vídeo iniciado para cena [X]\"\n     }  \n\n   - Se a tool não retornar nenhuma cena pendente → retorne:  \n     {\n       \"status\": \"all_videos_created\",\n       \"rowId\": \"\",\n       \"sessionId\": \"{{ $json.sessionId }}\",\n       \"sceneIndex\": \"\",\n       \"log\": \"Todas as cenas já foram iniciadas\"\n     }  \n\n🔧 Regras  \n- Sempre use **a saída real da tool**. Nunca invente valores.  \n- Apenas uma chamada por tool por execução.  \n- Ignore \"done\" e \"error\".  \n- Nunca tente processar ou baixar vídeos.  \n- PARE após retornar uma resposta.  \n\n📌 IMPORTANTE:  \n- Sempre inclua os 5 campos: \"status\", \"rowId\", \"sessionId\", \"sceneIndex\" e \"log\".  \n- \"status\" deve ser um dos: video_created, processing_found, all_videos_created, error.  \n- \"sceneIndex\" deve manter o formato \"scene_X\".  \n- Se não houver cena correspondente → use vazio (\"\") em rowId e sceneIndex.  \n- Use exatamente esta estrutura JSON, sem adicionar ou omitir campos.  \n\n📌 FORMATO FINAL OBRIGATÓRIO:  \n- Retorne apenas o JSON puro.  \n- Não use ```json ou qualquer bloco de código.  \n- Não adicione texto antes ou depois.  \n- Sempre inclua os 5 campos: \"status\", \"rowId\", \"sessionId\", \"sceneIndex\", \"log\".  \n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Você é o INICIADOR de vídeos. Encontre cenas pendentes, inicie geração, passe adiante.",
+          "maxIterations": 10
+        }
+      },
+      "id": "6336b01b-e47d-47bc-9344-b396418f91e2",
+      "name": "Video Creator Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        -304,
+        -832
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# 🎬 PROCESSADOR DE VÍDEOS\n**Responsável por completar vídeos iniciados e gerenciar progresso de cenas.**\n\n## 📥 DADOS DE ENTRADA\n```\nDados: {{ JSON.stringify($json, null, 2) }}\n```\n\n## 🔐 PARÂMETROS OBRIGATÓRIOS (getProcessedVideo)\n- **sessionId**: string (obrigatório)\n- **sceneIndex**: INTEIRO (extrair de \"scene_X\" → \"scene_1\" = 1)\n- **rowId**: INTEIRO\n\n---\n\n## 🔄 FLUXO DE EXECUÇÃO (4 ETAPAS)\n\n### 1️⃣ VALIDAÇÃO INICIAL\n```\n❌ Se faltar sessionId:\n   → Retorne: {\"status\":\"processing_error\",\"log\":\"sem sessionId\"}\n   → VÁ PARA ETAPA 4) checkAllDone\n\n⚠️ Se faltar rowId/sceneIndex:\n   → Tente obter via checkPendingScenes3 (próxima não-done)\n   → Extrair número do sceneIndex\n```\n\n### 2️⃣ EVENTOS IMEDIATOS (Gatilho para getProcessedVideo)\n```\n✅ TRIGGERS: status ∈ {\"video_created\", \"processing_found\", \"processing\"}\n\nAÇÃO:\n→ CHAME getProcessedVideo(sessionId, sceneIndex=número, rowId=número)\n→ Se retornar cena DIFERENTE da solicitada = OK (a pedida já está done)\n```\n\n### 3️⃣ STATUS DE CONTROLE (Finalização direta)\n```\n🏁 BYPASS: status ∈ {\"all_videos_created\", \"all_done\", \"finalize\", \"check_progress\"}\n\nAÇÃO:\n→ NÃO chame getProcessedVideo\n→ Prossiga direto para ETAPA 4)\n```\n\n### 4️⃣ CHECKALLDONE (⚠️ SEMPRE OBRIGATÓRIO)\n```\n🔍 CHAME SEMPRE: checkAllDone(sessionId)\n\nINTERPRETAÇÃO:\n• Resposta vazia OU igual a [{\"response\": \"[\\n  {}\\n]\"}] → done == total\n• Caso normal: conte done vs total nas respostas\n```\n\n---\n\n## 📊 DECISÕES DE SAÍDA\n\n### 🎯 CASO 1: TUDO CONCLUÍDO\n**Condição:** `done == total`\n```json\n{\n  \"status\": \"all_completed\",\n  \"rowId\": \"{{ $json.rowId }}\",\n  \"sessionId\": \"{{ $json.sessionId }}\",\n  \"sceneIndex\": {{ Number(($json.sceneIndex||\"\").toString().match(/\\d+/)?.[0] || 0) }},\n  \"hasNextScene\": false,\n  \"log\": \"[done]/[total]\"\n}\n```\n\n### 🎬 CASO 2: CENA CONCLUÍDA\n**Condição:** `done < total` E houve conclusão nesta execução\n- getProcessedVideo indicou: done/completed/success\n- OU retornou cena diferente da pedida\n```json\n{\n  \"status\": \"scene_completed\",\n  \"rowId\": \"{{ $json.rowId }}\",\n  \"sessionId\": \"{{ $json.sessionId }}\",\n  \"sceneIndex\": {{ Number(($json.sceneIndex||\"\").toString().match(/\\d+/)?.[0] || 0) }},\n  \"hasNextScene\": true,\n  \"log\": \"[done]/[total]\"\n}\n```\n\n### ⏳ CASO 3: AINDA PROCESSANDO\n**Condição:** Status = processing/generating/in_progress OU desconhecido\n```json\n{\n  \"status\": \"still_processing\",\n  \"rowId\": \"{{ $json.rowId }}\",\n  \"sessionId\": \"{{ $json.sessionId }}\",\n  \"sceneIndex\": {{ Number(($json.sceneIndex||\"\").toString().match(/\\d+/)?.[0] || 0) }},\n  \"log\": \"[done]/[total]\"\n}\n```\n> ⚠️ **IMPORTANTE:** Em `still_processing` inclua `hasNextScene` = true\n\n---\n\n## 🚫 REGRAS CRÍTICAS - NUNCA FAÇA:\n- ❌ Retornar resposta vazia\n- ❌ Tratar cena diferente como erro\n- ❌ Usar `hasNextScene=false` quando `done < total`\n- ❌ Pular a ETAPA 4) checkAllDone\n\n---\n\n## ✅ RESUMO OPERACIONAL\n\n### 🔀 FLUXOS PRINCIPAIS:\n```\nFLUXO A: video_created/processing_found/processing\n└─► getProcessedVideo() ► checkAllDone() ► saída\n\nFLUXO B: all_videos_created/all_done/finalize/check_progress  \n└─► pular getProcessedVideo ► checkAllDone() ► saída\n\nFLUXO C: qualquer outro caso\n└─► checkAllDone() ► saída\n```\n\n### 🎯 ORDEM DE PRIORIDADE:\n1. **Validação** (sessionId obrigatório)\n2. **Gatilhos** (chamar getProcessedVideo se aplicável)\n3. **Bypass** (pular getProcessedVideo se aplicável)  \n4. **CheckAllDone** (SEMPRE executar)\n5. **Saída** (baseada em done vs total)\n\n---\n\n## 📋 EXEMPLO DE PROCESSAMENTO\n\n**Input com status \"processing\":**\n```json\n{\n  \"success\": true,\n  \"id\": 200,\n  \"session_id\": \"video-de-superacao-1759003088098\",\n  \"index\": \"scene_2\", \n  \"status\": \"processing\"\n}\n```\n\n**Ação:** \n1. ✅ Validar sessionId\n2. ✅ Status=\"processing\" → TRIGGER → chamar getProcessedVideo()\n3. ✅ Executar checkAllDone()\n4. ✅ Decidir saída baseada em done/total",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a helpful assistant",
+          "maxIterations": 5
+        }
+      },
+      "id": "b35b7996-cf89-48c6-89d0-e8ab3423098e",
+      "name": "Video Processor Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        336,
+        -832
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WEBHOOK_URL }}/webhook/creat-video",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"rowId\": {{ $fromAI(\"rowId\", \"ID da linha no Baserow da cena pendente\") }}\n}",
+        "options": {}
+      },
+      "id": "8735a4fb-cbc8-4179-b9b6-9b7ecc81bf06",
+      "name": "Tool generateVideo",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        -224,
+        -608
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Chama webhook para verificar/obter vídeo da cena atual. Use quando status for ‘video_created’ ou ‘processing_found’, ou quando uma cena estiver em ‘processing’/com ‘create_url_video’. Parâmetros: sessionId (string), sceneIndex (int), rowId (int).",
+        "method": "POST",
+        "url": "={{ $env.WEBHOOK_URL }}/webhook/get-video",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n    \"sessionId\": \"{{ $fromAI(\"sessionId\", \"ID da sessão\") }}\",\n    \"sceneIndex\": {{ $fromAI(\"sceneIndex\", \"Índice numérico da cena (ex: 1, 2, 3)\") }},\n    \"rowId\": {{ $fromAI(\"rowId\", \"ID da linha no Baserow\") }}\n}",
+        "options": {},
+        "optimizeResponse": true
+      },
+      "id": "8e2d2533-a18c-4896-8e83-28f5a259a693",
+      "name": "Tool getProcessedVideo",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        416,
+        -608
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "id": "f1f4be8f-fa67-4697-9213-4b02de90817b",
+      "name": "Gemini Creator Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -608
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "X0kJXl2dRfEYzHd8",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "id": "159a2903-70bf-4464-951e-8a55de508a4c",
+      "name": "Gemini Processor Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        160,
+        -608
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "X0kJXl2dRfEYzHd8",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "has-next-scene",
+              "leftValue": "={{ $json.hasNextScene }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        -832
+      ],
+      "id": "b5f7ddf3-e754-4568-bcee-20379fbe551e",
+      "name": "Continue Processing?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const currentData = $input.first().json;\n\n// Se still_processing, mantém os mesmos dados para retry\nif (currentData.status === 'still_processing') {\n  return {\n    json: {\n      ...currentData,\n      iteration: (currentData.iteration || 0) + 1,\n      log: `Retry ${(currentData.iteration || 0) + 1}: Aguardando vídeo ${currentData.sceneIndex}`\n    }\n  };\n}\n\n// Se scene_completed, prepara próxima busca\nif ( currentData.hasNextScene) {\n  return {\n    json: {\n      sessionId: currentData.sessionId,\n      iteration: (currentData.iteration || 0) + 1,\n      lastProcessed: currentData.rowId,\n      lastSceneIndex: currentData.sceneIndex,\n      log: `Iteração ${(currentData.iteration || 0) + 1}: Buscando próxima cena`\n    }\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        -832
+      ],
+      "id": "0cfce723-3cb6-40d1-acee-defb1059e703",
+      "name": "Prepare Next Iteration"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -352,
+        -608
+      ],
+      "id": "604f1800-0e85-43ce-aba4-860dadd7ef4a",
+      "name": "Creator Memory"
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        288,
+        -608
+      ],
+      "id": "da81697b-1877-48c5-a564-cab7690a33ba",
+      "name": "Processor Memory"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Busca próxima cena PENDENTE para gerar vídeo. Retorna apenas cenas com status 'pending'.",
+        "url": "https://api.baserow.io/api/database/rows/table/680992/?user_field_names=true&size=5&filter__session_id__equal={sessionId}&filter__status__equal=pending&order_by=index&exclude=frame_base64",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "Authorization",
+              "valueProvider": "fieldValue",
+              "value": "=Token your-token-here"
+            }
+          ]
+        },
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "sessionId",
+              "description": "ID da sessão para filtrar cenas pendentes",
+              "type": "string"
+            }
+          ]
+        },
+        "optimizeResponse": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        -96,
+        -608
+      ],
+      "id": "720b9ee8-9a21-48e6-a57c-82f6e9fc354a",
+      "name": "Tool checkPendingScenes2"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Busca cenas em PROCESSAMENTO que precisam ser verificadas/finalizadas.",
+        "url": "https://api.baserow.io/api/database/rows/table/680992/?user_field_names=true&size=5&filter__session_id__equal={sessionId}&filter__status__equal=processing&order_by=index&exclude=frame_base64",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "Authorization",
+              "valueProvider": "fieldValue",
+              "value": "=Token your-token-here"
+            }
+          ]
+        },
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "sessionId",
+              "description": "ID da sessão para filtrar cenas pendentes",
+              "type": "string"
+            }
+          ]
+        },
+        "optimizeResponse": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        32,
+        -608
+      ],
+      "id": "05fd6e34-989d-4407-a4a3-2fbbb9c057bd",
+      "name": "Tool checkProcessingScenes"
+    },
+    {
+      "parameters": {
+        "jsCode": "let raw = $json.output || $json.text || JSON.stringify($json);\n\n// Remove blocos de markdown e espaços extras\nraw = raw.replace(/```json|```/gi, \"\").trim();\n\n// Tenta detectar JSON dentro de texto maior\nconst match = raw.match(/\\{[\\s\\S]*\\}/);\nif (match) {\n  raw = match[0]; // pega só o trecho entre { }\n}\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  parsed = {\n    status: \"error\",\n    rowId: \"\",\n    sessionId: $json.sessionId || \"\",\n    sceneIndex: \"\",\n    log: \"Falha ao parsear JSON: \" + e.message\n  };\n}\n\nreturn parsed;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        -832
+      ],
+      "id": "7341e0d5-0a60-4586-87c6-f30f97bc618b",
+      "name": "Parse data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Helpers\nconst toNumber = (v) => {\n  const m = (v ?? \"\").toString().match(/\\d+/);\n  return m ? Number(m[0]) : 0;\n};\nconst clean = (s) =>\n  String(s).replace(/```json|```/gi, \"\").replace(/\\b(False|True|None)\\b/g, (x) =>\n    x === \"False\" ? \"false\" : x === \"True\" ? \"true\" : \"null\"\n  );\nconst tryParse = (v) => {\n  if (v == null) return null;\n  if (typeof v === \"object\") return v;\n  const s = clean(v).trim();\n  try { return JSON.parse(s); } catch {}\n  const mArr = s.match(/\\[[\\s\\S]*\\]/);\n  const mObj = s.match(/\\{[\\s\\S]*\\}/);\n  const pick = mArr?.[0] ?? mObj?.[0] ?? null;\n  if (!pick) return null;\n  try { return JSON.parse(pick); } catch {}\n  return null;\n};\n\nlet raw = $json.output ?? $json.text ?? $json;\nlet parsed = tryParse(raw);\n\nif (!parsed) {\n  parsed = {\n    status: \"processing_error\",\n    rowId: $json.rowId || \"\",\n    sessionId: $json.sessionId || \"\",\n    sceneIndex: toNumber($json.sceneIndex),\n    log: \"Falha ao parsear output do agente\",\n  };\n}\n\n// normaliza tipos\nif (parsed.sceneIndex !== undefined) parsed.sceneIndex = toNumber(parsed.sceneIndex);\nif (typeof parsed.rowId === \"string\") parsed.rowId = toNumber(parsed.rowId);\n\n// log\nconsole.log(\"PARSED Status:\", parsed.status);\nconsole.log(\"PARSED HasNextScene:\", parsed.hasNextScene);\nconsole.log(\"PARSED HasNextScene Type:\", typeof parsed.hasNextScene);\n\nreturn [{ json: parsed }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        -832
+      ],
+      "id": "e96160a8-189f-402c-a7d5-83c38898aca6",
+      "name": "Parse data processor"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Busca próxima cena PENDENTE para gerar vídeo. Retorna apenas cenas com status 'pending'.",
+        "url": "https://api.baserow.io/api/database/rows/table/680992/?user_field_names=true&size=5&filter__session_id__equal={sessionId}&filter__status__equal=pending&order_by=index&exclude=frame_base64",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "Authorization",
+              "valueProvider": "fieldValue",
+              "value": "=Token your-token-here"
+            }
+          ]
+        },
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "sessionId",
+              "description": "ID da sessão para filtrar cenas pendentes",
+              "type": "string"
+            }
+          ]
+        },
+        "optimizeResponse": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        544,
+        -608
+      ],
+      "id": "60897b75-9b24-47cc-80dd-89e3e2383a9a",
+      "name": "Tool checkPendingScenes3"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analise a descrição e extraia todos os parâmetros necessários em um JSON completo:\n\n{\n  \"g_style\": \"visual style/genre\",\n  \"g_mood\": \"overall mood/atmosphere\",\n  \"g_lighting\": \"lighting conditions\",\n  \"g_color_palette\": \"dominant color palette\",\n  \"g_voice_prompt\": \"desired voice style and tone\",\n  \"g_negative_prompt\": \"visual elements to avoid\",\n  \"g_negative_audio_prompt\": \"undesired sounds\",\n  \"g_numero_videos\": 3,\n  \"camera_movement\": \"slow pan/zoom/static\",\n  \"motion_intensity\": \"low/medium/high\",\n  \"title\": \"título do projeto\",\n  \"negative_voice_prompt\": \"elementos vocais indesejados\"\n}\n\nDescrição: {{ $('Prompt Input').item.json.chatInput }}\n\n⚠️ REGRAS:\n- Responda com JSON válido apenas\n- Use inferência criativa para preencher campos ausentes\n- Mantenha coesão estética, emocional e vocal\n- Português brasileiro obrigatório",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "id": "c5619cd0-f505-480b-9bbb-fcab2f59b54f",
+      "name": "Extrai Parâmetros",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        192,
+        -1456
+      ],
+      "typeVersion": 1.7,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega o conteúdo do primeiro item\nlet raw = $input.first().json.text || \"\";\n\n// Remove blocos de markdown\nraw = raw.replace(/```json|```/gi, \"\").trim();\n\n// Faz parse do JSON contido\nlet input;\ntry {\n  input = JSON.parse(raw);\n} catch (e) {\n  input = {};\n}\n\n// Define título\nlet titulo = input.title || \"video-projeto\";\n\n// Sanitização para slug\ntitulo = titulo.toLowerCase()\n  .normalize(\"NFD\")\n  .replace(/[\\u0300-\\u036f]/g, \"\")\n  .replace(/[^a-z0-9\\s-]/g, \"\")\n  .trim();\n\n// Limita a no máximo 3 palavras\nlet palavras = titulo.split(/\\s+/).slice(0, 3);\ntitulo = palavras.join(\"-\")\n  .replace(/-+/g, \"-\")\n  .replace(/^-+|-+$/g, \"\");\n\n// Adiciona timestamp para unicidade\nconst timestamp = Date.now();\nconst slug = `${titulo}-${timestamp}`;\n\n// Retorno consolidado\nreturn [\n  {\n    json: {\n      ...input,\n      slug,\n      sessionId: slug,\n      timestamp\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        -1456
+      ],
+      "id": "5b05127f-7ec2-4b46-8646-4fa040e4cb32",
+      "name": "Processa + Slug",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "command": "=mkdir -p /tmp/videos/{{ $json.slug }}"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        768,
+        -1456
+      ],
+      "id": "98c4181d-0735-460b-b96a-56ce739126ea",
+      "name": "Cria Diretório",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxOutputTokens": 4096,
+          "temperature": 0.4,
+          "topK": 32,
+          "topP": 1,
+          "safetySettings": {
+            "values": [
+              {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_NONE"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "position": [
+        192,
+        -1280
+      ],
+      "name": "Gemini Unified",
+      "id": "3c912846-3ba8-4969-b2d9-b8b33ba38ee4",
+      "typeVersion": 1,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "X0kJXl2dRfEYzHd8",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Crie roteiro {{ $('Processa + Slug').item.json.g_numero_videos }} cenas 8s. RETORNE APENAS JSON VÁLIDO COMPLETO.\n\n⚠️ TAMANHO MÁXIMO POR CAMPO (CRÍTICO):\n{{ $('Processa + Slug').item.json.g_numero_videos <= 3 ? '• prompt: 280-320 chars\\n• video_prompt: 150-180 chars\\n• audio_cues: 100-120 chars' : $('Processa + Slug').item.json.g_numero_videos <= 6 ? '• prompt: 200-250 chars\\n• video_prompt: 100-130 chars\\n• audio_cues: 80-100 chars' : '• prompt: 150-180 chars\\n• video_prompt: 80-100 chars\\n• audio_cues: 60-80 chars' }}\n\n📋 TEMPLATE OBRIGATÓRIO:\n{\n  \"title\": \"{{ $('Processa + Slug').item.json.title }}\",\n  \"metadata\": {\n    \"slug\": \"{{ $('Processa + Slug').item.json.slug }}\",\n    \"sessionId\": \"{{ $('Processa + Slug').item.json.sessionId }}\",\n    \"total_scenes\": {{ $('Processa + Slug').item.json.g_numero_videos }},\n    \"timestamp\": {{ $('Processa + Slug').item.json.timestamp }}\n  },\n  \"visual_guide\": {\n    \"style\": \"{{ $('Processa + Slug').item.json.g_style }}\",\n    \"lighting\": \"{{ $('Processa + Slug').item.json.g_lighting }}\"\n  },\n  \"scenes\": [\n    {\n      \"id\": \"scene_1\",\n      \"duration\": \"8s\",\n      \"prompt\": \"[MÁXIMO {{ $('Processa + Slug').item.json.g_numero_videos <= 3 ? '320' : $('Processa + Slug').item.json.g_numero_videos <= 6 ? '250' : '180' }} CHARS]\",\n      \"video_prompt\": \"[MOVIMENTO ESPECÍFICO. MÁXIMO {{ $('Processa + Slug').item.json.g_numero_videos <= 3 ? '180' : $('Processa + Slug').item.json.g_numero_videos <= 6 ? '130' : '100' }} CHARS]\",\n      \"audio_cues\": \"[NARRAÇÃO. MÁXIMO {{ $('Processa + Slug').item.json.g_numero_videos <= 3 ? '120' : $('Processa + Slug').item.json.g_numero_videos <= 6 ? '100' : '80' }} CHARS]\"\n    }\n  ]\n}\n\n🚨 REGRAS ABSOLUTAS:\n1. COMPLETE O JSON - se necessário, corte textos mas NUNCA deixe JSON incompleto\n2. NÃO REPITA informações entre campos (sem duplicação)\n3. FOQUE EM MOVIMENTO no video_prompt (Veo usa frame anterior como base)\n4. PORTUGUÊS BRASILEIRO em audio_cues\n5. SE APROXIMANDO DO LIMITE: termine a cena atual e feche o JSON\n\n🎯 PRIORIDADES DE CORTE (se necessário):\n1° Remova adjetivos e advérbios desnecessários\n2° Simplifique descrições visuais (Veo já tem referência)\n3° Reduza narração ao essencial\n4° Use abreviações: \"mov.\" por \"movimento\", \"prog.\" por \"progressão\"\n\n✅ EXEMPLO CENA OTIMIZADA:\n{\n  \"id\": \"scene_1\",\n  \"duration\": \"8s\",\n  \"prompt\": \"Pessoa sentada, cabeça baixa, ambiente escuro. Luz fraca, sombras profundas. Movimento lento levanta cabeça, olha janela.\",\n  \"video_prompt\": \"Pessoa levanta cabeça lentamente, olha para janela. Mov. suave.\",\n  \"audio_cues\": \"Narrador: Às vezes a esperança surge quando menos esperamos.\"\n}\n\n⛔ NUNCA:\n- Deixe JSON incompleto\n- Use mais caracteres que o limite\n- Duplique informações\n- Adicione campos extras não solicitados\n- Escreva fora do JSON\n- altere o session_id ou slug eles são unique keys\n\nTÍTULO: {{ $('Processa + Slug').item.json.title }}\nCENAS: {{ $('Processa + Slug').item.json.g_numero_videos }}\nVOZ: {{ $('Processa + Slug').item.json.g_voice_prompt }}\n\nRETORNE APENAS O JSON!",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "id": "8cf37d29-8763-4604-9f26-0d156c4ed0d9",
+      "name": "Roteiro → JSON Final",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        976,
+        -1456
+      ],
+      "typeVersion": 1.7,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxOutputTokens": 4096,
+          "temperature": 0.4,
+          "topK": 32,
+          "topP": 1,
+          "safetySettings": {
+            "values": [
+              {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_NONE"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "position": [
+        976,
+        -1280
+      ],
+      "name": "Gemini Unified1",
+      "id": "beb48646-5060-482a-aca0-1b31a93c32c4",
+      "typeVersion": 1,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "X0kJXl2dRfEYzHd8",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "=ffmpeg -y \\\n  $(ls /tmp/videos/{{ $json.sessionId }}/scene_*.mp4 2>/dev/null | sort -V | sed 's/^/-i /') \\\n  -filter_complex \"$(ls /tmp/videos/{{ $json.sessionId }}/scene_*.mp4 2>/dev/null | sort -V | \\\n    awk '{printf \"[%d:v][%d:a]\", NR-1, NR-1} END {printf \"concat=n=\" NR \":v=1:a=1[v][a]\"}')\" \\\n  -map \"[v]\" -map \"[a]\" \\\n  -c:v libx264 -preset fast -crf 23 \\\n  -c:a aac -b:a 192k -ar 48000 -ac 2 \\\n  -pix_fmt yuv420p -movflags +faststart \\\n  /tmp/videos/{{ $json.sessionId }}/final_video.mp4\n"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        -608
+      ],
+      "id": "9910ebfe-8f35-4040-be43-957063447de7",
+      "name": "Execute Command1"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Busca se todos os items de um sessionId estão done",
+        "url": "https://api.baserow.io/api/database/rows/table/680992/?user_field_names=true&filter__session_id__equal={sessionId}&exclude=frame_base64&include=id,session_id,index,status&order_by=index&size=200",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "Authorization",
+              "valueProvider": "fieldValue",
+              "value": "=Token your-token-here"
+            }
+          ]
+        },
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "sessionId",
+              "description": "ID da sessão para filtrar cenas pendentes",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        688,
+        -608
+      ],
+      "id": "6e7690e5-2dc4-4c72-938b-7ef413eff49f",
+      "name": "Tool checkAllDone"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\n// aceita objeto já parseado; não cheque \"output\"\nif (!input.status) {\n  return [{\n    json: {\n      status: \"processing_error\",\n      rowId: input.rowId || \"\",\n      sessionId: input.sessionId || \"\",\n      sceneIndex: input.sceneIndex ?? 0,\n      hasNextScene: true, // mantém o loop\n      log: \"Agente sem status — assumindo trabalho pendente\"\n    }\n  }];\n}\n\nreturn [$input.first()];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -832
+      ],
+      "id": "7e2df20f-a169-46c2-bb32-e1b72178446a",
+      "name": "Fix Empty Output"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Prepare Scenes with Continuity": {
+      "main": [
+        [
+          {
+            "node": "Initialize Agent State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to Binary Output": {
+      "main": [
+        [
+          {
+            "node": "Send Final Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Config1": {
+      "main": [
+        [
+          {
+            "node": "Extrai Parâmetros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove caracteres especiais": {
+      "main": [
+        [
+          {
+            "node": "Generate First Scene Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate First Scene Image": {
+      "main": [
+        [
+          {
+            "node": "Prepare Scenes with Continuity",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Convert Generated Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt Input": {
+      "main": [
+        [
+          {
+            "node": "Get Config1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Agent State": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Baserow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baserow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Session": {
+      "main": [
+        [
+          {
+            "node": "Video Creator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video Creator Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video Processor Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse data processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Continue Processing?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Next Iteration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Command1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Next Iteration": {
+      "main": [
+        [
+          {
+            "node": "Video Creator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool generateVideo": {
+      "ai_tool": [
+        [
+          {
+            "node": "Video Creator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool getProcessedVideo": {
+      "ai_tool": [
+        [
+          {
+            "node": "Video Processor Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Creator Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Video Creator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Processor Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Video Processor Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Creator Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Video Creator Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processor Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Video Processor Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool checkPendingScenes2": {
+      "ai_tool": [
+        [
+          {
+            "node": "Video Creator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool checkProcessingScenes": {
+      "ai_tool": [
+        [
+          {
+            "node": "Video Creator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse data": {
+      "main": [
+        [
+          {
+            "node": "Video Processor Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse data processor": {
+      "main": [
+        [
+          {
+            "node": "Fix Empty Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool checkPendingScenes3": {
+      "ai_tool": [
+        [
+          {
+            "node": "Video Processor Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrai Parâmetros": {
+      "main": [
+        [
+          {
+            "node": "Processa + Slug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processa + Slug": {
+      "main": [
+        [
+          {
+            "node": "Cria Diretório",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cria Diretório": {
+      "main": [
+        [
+          {
+            "node": "Roteiro → JSON Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Unified": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extrai Parâmetros",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Unified1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Roteiro → JSON Final",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Roteiro → JSON Final": {
+      "main": [
+        [
+          {
+            "node": "Remove caracteres especiais",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Command1": {
+      "main": [
+        [
+          {
+            "node": "Convert to Binary Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool checkAllDone": {
+      "ai_tool": [
+        [
+          {
+            "node": "Video Processor Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix Empty Output": {
+      "main": [
+        [
+          {
+            "node": "Continue Processing?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0e52a357-ab8b-4c3c-b37e-ca0499a7acbe",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d1b0ef2164e9a177f6384a02d1859318790ccb76a4a79273333fce728fcf4f86"
+  },
+  "id": "YvnBcPchRSgrydfy",
+  "tags": []
+}
